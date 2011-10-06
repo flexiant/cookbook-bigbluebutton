@@ -1,0 +1,245 @@
+#!/bin/bash
+#
+# /etc/init.d/red5 -- startup script for the red5 server
+#
+# Based on the tomcat6 init script.
+# Written by Miquel van Smoorenburg <miquels@cistron.nl>.
+# Modified for Ubuntu red5 by Fred Dixon <ffdixon@bigbluebutton.org> 
+# Modified for Debian GNU/Linux	by Ian Murdock <imurdock@gnu.ai.mit.edu>.
+# Modified for Tomcat by Stefan Gybas <sgybas@debian.org>.
+# Modified for Tomcat6 by Thierry Carrez <thierry.carrez@ubuntu.com>.
+#
+### BEGIN INIT INFO
+# Provides:          red5
+# Required-Start:    $local_fs $remote_fs $network
+# Required-Stop:     $local_fs $remote_fs $network
+# Should-Start:      $named
+# Should-Stop:       $named
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start red5.
+# Description:       Start the red5 service.
+### END INIT INFO
+
+#set -e 
+#set -x
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+NAME=red5
+DESC="Red5 Server"
+RED5_HOME=/usr/share/$NAME
+DEFAULT=/etc/default/$NAME
+UMASK=002
+
+
+if [ `id -u` -ne 0 ]; then
+	echo "You need root privileges to run this script"
+	exit 1
+fi
+ 
+# Make sure red5 is started with system locale
+if [ -r /etc/default/locale ]; then
+	. /etc/default/locale
+	export LANG
+fi
+
+. /lib/lsb/init-functions
+. /etc/default/rcS
+
+
+# The following variables can be overwritten in $DEFAULT
+
+# The first existing directory is used for JAVA_HOME (if JAVA_HOME is not
+# defined in $DEFAULT)
+JDK_DIRS="/usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-sun /usr/lib/jvm/java-1.5.0-sun /usr/lib/j2sdk1.5-sun /usr/lib/j2sdk1.5-ibm"
+
+# Look for the right JVM to use
+for jdir in $JDK_DIRS; do
+    if [ -r "$jdir/bin/java" -a -z "${JAVA_HOME}" ]; then
+	JAVA_HOME="$jdir"
+    fi
+done
+export JAVA_HOME
+
+
+# Output file
+if [ -z "$OUT_FILE" ]; then
+	OUT_FILE=/var/log/red5.out
+fi
+
+# End of variables that can be overwritten in $DEFAULT
+
+
+# overwrite settings from default file
+if [ -f "$DEFAULT" ]; then
+	. "$DEFAULT"
+fi
+
+if [ ! -f "$RED5_HOME/red5.jar" ]; then
+	log_failure_msg "$NAME is not installed"
+	exit 1
+fi
+
+#
+# Function to wait if there are connections still open for 1935.  Some browsers hang on to a connection
+# that prevents a ./red5 restart from binding to port 1935
+#
+
+wait_1935_close () {
+        ACTIVE=$(netstat -ant | grep 1935 | wc | awk -F ' ' '{print $1}')
+        if [ $ACTIVE != 0 ]; then
+                echo -n "   Waiting for $ACTIVE connections on port 1935 to close before starting Red5 "
+                while [ $ACTIVE != 0 ]; do
+                        echo -n "."
+                        sleep 5
+                        ACTIVE=$(netstat -ant | grep 1935 | wc | awk -F ' ' '{print $1}')
+
+			#
+			# A failsafe ... if the ports have not closed after 5 minutes, force quit red5
+			#
+        		i=$[$i+1]
+			if [ $i == "60" ]; then
+				RED5_ID=$(ps ax | grep -i red5 | grep -v grep | grep -v init | head -n 1 | awk '{print $1}')
+				kill -9 $RED5_ID
+			fi
+                done
+        fi
+        echo
+}
+
+# Define other required variables
+RED5_PID="/var/run/$NAME.pid"
+
+RED5_MAINCLASS=org.red5.server.Bootstrap
+RED5_CLASSPATH="$RED5_HOME/boot.jar:$RED5_HOME/conf:$RED5_HOME/lib/ejb3-persistence.jar"
+JAVA_OPTS="-Dpython.home=lib -Xms128M -Xmx128M -Dred5.root=$RED5_HOME -Dlogback.ContextSelector=org.red5.logging.LoggingContextSelector -Dcatalina.useNaming=true -Djava.security.debug=failure -cp $RED5_CLASSPATH org.red5.server.Bootstrap"
+
+
+case "$1" in
+  start)
+	if [ -z "$JAVA_HOME" ]; then
+		log_failure_msg "no JDK found - please set JAVA_HOME"
+		exit 1
+	fi
+
+	if [ ! -d "$RED5_HOME/conf" ]; then
+		log_failure_msg "invalid RED5_HOME: $RED5_HOME"
+		exit 1
+	fi
+	
+	echo "sip.server.host=`ip addr list eth0 |grep "inet " |cut -d' ' -f6|cut -d/ -f1`" > /tmp/bigbluebutton-sip.properties
+	cat /usr/share/red5/webapps/sip/WEB-INF/bigbluebutton-sip.properties | grep -v sip.server.host >> /tmp/bigbluebutton-sip.properties
+	mv -f /tmp/bigbluebutton-sip.properties  /usr/share/red5/webapps/sip/WEB-INF/bigbluebutton-sip.properties
+
+	log_daemon_msg "Starting $DESC" "$NAME"
+        if start-stop-daemon --start --test --pidfile $RED5_PID \
+		--startas "$JAVA_HOME/bin/java" \
+		>/dev/null; then
+
+		wait_1935_close
+
+		start-stop-daemon --start --background --make-pidfile --chuid red5  --umask $UMASK \
+			--chdir $RED5_HOME --pidfile $RED5_PID --startas "$JAVA_HOME/bin/java" -- $JAVA_OPTS
+
+		sleep 5
+
+		# Because we pushed it into the background, we need to check it's status
+        	if start-stop-daemon --test --start --pidfile $RED5_PID --startas "$JAVA_HOME/bin/java" >/dev/null; then
+			log_end_msg 1
+		else
+			log_end_msg 0
+		fi
+	else
+	        log_progress_msg "(already running)"
+		log_end_msg 0
+	fi
+	;;
+  stop)
+	log_daemon_msg "Stopping $DESC" "$NAME"
+        if start-stop-daemon --start --test --pidfile $RED5_PID \
+		--startas "$JAVA_HOME/bin/java" \
+		>/dev/null; then
+		log_progress_msg "(not running)"
+	else
+                #
+                # Wait until we see port 9123, which suggests red5 has fully started
+                #
+
+                if ! nc -z -w 1 127.0.0.1 9123; then
+                        echo -n "   Waiting for BigBlueButton to finish starting up before shutting down: "
+                        if ! nc -z -w 1 127.0.0.1 9123; then
+                                echo -n "."
+                                sleep 3
+                        fi
+                        if ! nc -z -w 1 127.0.0.1 9123; then
+                                echo -n "."
+                                sleep 3
+                        fi
+                        if ! nc -z -w 1 127.0.0.1 9123; then
+                                echo -n "."
+                                sleep 3
+                        fi
+                        if ! nc -z -w 1 127.0.0.1 9123; then
+                                echo -n "."
+                                sleep 3
+                        fi
+                        if ! nc -z -w 1 127.0.0.1 9123; then
+                                echo -n "."
+                                sleep 3
+                        fi
+                fi
+		sleep 2
+
+                if /usr/share/red5/red5-shutdown.sh 2>&1 >/dev/null | grep -q java.io.IOException; then
+                        start-stop-daemon --stop --pidfile $RED5_PID \
+                                --startas "$JAVA_HOME/bin/java"
+                fi
+		sleep 2
+
+		#
+		# This is to ensure  that red5 is actually stopped
+		#
+                RED5_ID=$(ps ax | grep -i red5 | grep -v grep | grep -v init | grep -v dpkg | grep -v invoke-rc.d | head -n 1 | awk '{print $1}')
+		if [ ! -z $RED5_ID ]; then
+			kill -9 $RED5_ID
+		fi
+
+		#
+		# Remove the process ID file
+		#
+		rm -f $RED5_PID
+	fi
+	log_end_msg 0
+	;;
+   status)
+        if start-stop-daemon --start --test --pidfile $RED5_PID \
+		--startas "$JAVA_HOME/bin/java" \
+		>/dev/null; then
+
+		if [ -f "$RED5_PID" ]; then
+		    log_success_msg "$DESC is not running, but pid file exists."
+			exit 1
+		else
+		    log_success_msg "$DESC is not running."
+			exit 3
+		fi
+	else
+		log_success_msg "$DESC is running with pid `cat $RED5_PID`"
+	fi
+        ;;
+  restart|force-reload)
+        if start-stop-daemon --test --stop --pidfile "$RED5_PID" \
+		--startas "$JAVA_HOME/bin/java" \
+		>/dev/null; then
+		$0 stop
+		sleep 1
+	fi
+	$0 start
+	;;
+  *)
+	log_success_msg "Usage: $0 {start|stop|restart|force-reload|status}"
+	exit 1
+	;;
+esac
+
+exit 0
