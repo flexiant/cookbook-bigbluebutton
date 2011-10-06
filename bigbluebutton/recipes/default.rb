@@ -86,13 +86,6 @@ if platform?(%w{debian ubuntu})
   end
 end
 
-cookbook_file "/etc/init.d/red5" do
-  source "red5.init"
-  mode 0750
-  owner "root"
-  group "root"
-end
-
 # To be run after the chef run, enqueued by bigbluebutton package installation
 bash "Configure bigbluebutton" do
   code "/usr/local/bin/bbb-conf --setip #{node[:fqdn]} && /usr/local/bin/bbb-conf --clean && /usr/local/bin/bbb-conf --check"
@@ -104,4 +97,11 @@ package 'bigbluebutton' do
   not_if { node.attribute?("bigbluebutton_installed") }
   notifies :create, "ruby_block[bigbluebutton_install_flag]", :immediately
   notifies :run, 'bash[Configure bigbluebutton]', :delayed
+end
+
+cookbook_file "/etc/init.d/red5" do
+  source "red5.init"
+  mode 0750
+  owner "root"
+  group "root"
 end
