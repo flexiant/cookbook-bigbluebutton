@@ -52,13 +52,17 @@ script "Setting up rvmsudo replace sudo" do
   cwd "/tmp"
   code <<-EOH
   cp -f /usr/bin/sudo /usr/bin/sudo.orig
-  if [ `file /usr/bin/sudo | grep bash | wc  -c` != "0" ]
+  if [ `file /usr/bin/sudo | grep bash | wc  -c` == "0" ]
   then
      rm -f /usr/bin/sudo
      ln -s /usr/local/rvm/bin/rvmsudo /usr/bin/sudo
   fi
   sed -i "s/command sudo /command sudo.orig /" /usr/bin/sudo
   EOH
+end
+
+gem_package "bundler" do
+  action :install
 end
 
 gem_package "god" do

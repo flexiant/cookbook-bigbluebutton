@@ -3,7 +3,7 @@ maintainer_email  "javier@besol.es"
 license           "Apache 2.0"
 description       "Installs bigbluebutton"
 long_description IO.read(File.join(File.dirname(__FILE__), 'README.rdoc'))
-version          "0.3.5"
+version          "0.3.6"
 recipe           "bigbluebutton", "Installs and configures bigbluebutton"
 recipe		 "bigbluebutton::beta", "Installs and configures bigbluebutton beta"
 
