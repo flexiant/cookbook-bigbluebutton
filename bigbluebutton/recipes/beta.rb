@@ -51,12 +51,11 @@ script "Setting up rvmsudo replace sudo" do
   user "root"
   cwd "/tmp"
   code <<-EOH
-  mv /usr/bin/sudo /usr/bin/sudo.orig
-  if [ `file /usr/bin/sudo.orig | grep bash | wc  -c` != "0" ]
+  cp -f /usr/bin/sudo /usr/bin/sudo.orig
+  if [ `file /usr/bin/sudo | grep bash | wc  -c` != "0" ]
   then
+     rm -f /usr/bin/sudo
      ln -s /usr/local/rvm/bin/rvmsudo /usr/bin/sudo
-  else
-     echo "No need to update"
   fi
   sed -i "s/command sudo /command sudo.orig /" /usr/bin/sudo
   EOH
