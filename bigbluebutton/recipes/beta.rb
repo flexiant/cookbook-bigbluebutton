@@ -46,6 +46,12 @@ bash "Ensuring multiverse is enabled" do
   not_if { node.attribute?("bigbluebutton_installed") }
 end
 
+bash "Updating Apt Repository" do
+  user 'root'
+  code 'apt-get-update'
+  not_if { node.attribute?("bigbluebutton_installed") }
+end
+
 script "Setting up rvmsudo replace sudo" do
   interpreter "bash"
   user "root"
