@@ -5,6 +5,7 @@ description       "Installs bigbluebutton"
 long_description IO.read(File.join(File.dirname(__FILE__), 'README.rdoc'))
 version          "0.3.0"
 recipe           "bigbluebutton", "Installs and configures bigbluebutton"
+recipe		 "bigbluebutton::beta", "Installs and configures bigbluebutton beta"
 
 %w(apt mysql).each do |recipe_dependency|
   depends recipe_dependency

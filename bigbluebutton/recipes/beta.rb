@@ -1,6 +1,6 @@
 #
 # Cookbook Name:: bigbluebutton
-# Recipe:: default
+# Recipe:: beta
 #
 # Copyright 2011, Example Com
 #
@@ -16,9 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-# MySQL Server install
-include_recipe "mysql::server"
 
 # Make sure that the package list is up to date on Ubuntu/Debian.
 include_recipe "apt" if ['debian', 'ubuntu'].member? node[:platform]
@@ -39,7 +36,7 @@ end
 
 bash "Adding the bigbluebutton repository URL" do
   user 'root'
-  code 'echo "deb http://ubuntu.bigbluebutton.org/lucid/ bigbluebutton-lucid main" | sudo tee /etc/apt/sources.list.d/bigbluebutton.list'
+  code 'echo "deb http://ubuntu.bigbluebutton.org/lucid_dev_08/ bigbluebutton-lucid main" | sudo tee /etc/apt/sources.list.d/bigbluebutton.list'
   not_if { node.attribute?("bigbluebutton_installed") }
 end
 
@@ -49,42 +46,25 @@ bash "Ensuring multiverse is enabled" do
   not_if { node.attribute?("bigbluebutton_installed") }
 end
 
-
-package 'python-software-properties'
-
-bash "Adding repository with bbb-freeswitch-config .deb package" do
-  user 'root'
-  code 'add-apt-repository  ppa:freeswitch-drivers/freeswitch-nightly-drivers; apt-get update'
-  not_if { node.attribute?("bigbluebutton_installed") }
+script "Setting up rvmsudo replace sudo" do
+  interpreter "bash"
+  user "root"
+  cwd "/tmp"
+  code <<-EOH
+  mv /usr/bin/sudo /usr/bin/sudo.orig
+  ln -s /usr/local/rvm/bin/rvmsudo /usr/bin/sudo
+  sed -i "s/command sudo/command sudo.orig/" /usr/bin/sudo
+  EOH
 end
 
-package 'bbb-freeswitch-config' do
-  not_if { node.attribute?("bigbluebutton_installed") }
+gem_package "god" do
+  action :install
 end
 
-
-# BigBlueButton password access to MySQL server
-if platform?(%w{debian ubuntu})
-
-  directory "/var/cache/local/preseeding" do
-    owner "root"
-    group "root"
-    mode 0755
-    recursive true
-  end
-
-  execute "preseed bigbluebutton" do
-    command "debconf-set-selections /var/cache/local/preseeding/bigbluebutton.seed"
-    action :nothing
-  end
-
-  template "/var/cache/local/preseeding/bigbluebutton.seed" do
-    source "bigbluebutton.seed.erb"
-    owner "root"
-    group "root"
-    mode "0600"
-    notifies :run, resources(:execute => "preseed bigbluebutton"), :immediately
-  end
+package 'bigbluebutton bbb-demo' do
+  not_if { node.attribute?("bigbluebutton_installed") }
+  notifies :create, "ruby_block[bigbluebutton_install_flag]", :immediately
+  notifies :run, 'bash[Configure bigbluebutton]', :delayed
 end
 
 # To be run after the chef run, enqueued by bigbluebutton package installation
@@ -92,17 +72,4 @@ bash "Configure bigbluebutton" do
   code "/usr/local/bin/bbb-conf --setip #{node[:fqdn]} && /usr/local/bin/bbb-conf --clean && /usr/local/bin/bbb-conf --check"
   user 'root'
   action :nothing
-end
-
-package 'bigbluebutton' do
-  not_if { node.attribute?("bigbluebutton_installed") }
-  notifies :create, "ruby_block[bigbluebutton_install_flag]", :immediately
-  notifies :run, 'bash[Configure bigbluebutton]', :delayed
-end
-
-cookbook_file "/etc/init.d/red5" do
-  source "red5.init"
-  mode 0750
-  owner "root"
-  group "root"
 end
