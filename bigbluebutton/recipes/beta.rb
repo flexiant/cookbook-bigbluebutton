@@ -48,7 +48,7 @@ end
 
 bash "Updating Apt Repository" do
   user 'root'
-  code 'apt-get-update'
+  code 'apt-get update'
   not_if { node.attribute?("bigbluebutton_installed") }
 end
 
