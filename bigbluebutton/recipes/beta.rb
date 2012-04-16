@@ -61,7 +61,11 @@ gem_package "god" do
   action :install
 end
 
-package 'bigbluebutton bbb-demo' do
+package 'bigbluebutton' do
+  not_if { node.attribute?("bigbluebutton_installed") }
+end
+
+package 'bbb-demo' do
   not_if { node.attribute?("bigbluebutton_installed") }
   notifies :create, "ruby_block[bigbluebutton_install_flag]", :immediately
   notifies :run, 'bash[Configure bigbluebutton]', :delayed
