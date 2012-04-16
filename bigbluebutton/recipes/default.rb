@@ -39,7 +39,11 @@ end
 
 bash "Adding the bigbluebutton repository URL" do
   user 'root'
-  code 'echo "deb http://ubuntu.bigbluebutton.org/lucid/ bigbluebutton-lucid main" | sudo tee /etc/apt/sources.list.d/bigbluebutton.list'
+  if node['bigbluebutton']['beta']
+    code 'echo "http://ubuntu.bigbluebutton.org/lucid_dev_08/ bigbluebutton-lucid main" | sudo tee /etc/apt/sources.list.d/bigbluebutton.list'
+  else
+    code 'echo "deb http://ubuntu.bigbluebutton.org/lucid/ bigbluebutton-lucid main" | sudo tee /etc/apt/sources.list.d/bigbluebutton.list'
+  end
   not_if { node.attribute?("bigbluebutton_installed") }
 end
 
@@ -57,9 +61,12 @@ bash "Adding repository with bbb-freeswitch-config .deb package" do
   not_if { node.attribute?("bigbluebutton_installed") }
 end
 
-package 'bbb-freeswitch-config' do
-  not_if { node.attribute?("bigbluebutton_installed") }
+unless node['bigbluebutton']['beta']
+  package 'bbb-freeswitch-config' do
+    not_if { node.attribute?("bigbluebutton_installed") }
+  end
 end
+
 
 
 # BigBlueButton password access to MySQL server
