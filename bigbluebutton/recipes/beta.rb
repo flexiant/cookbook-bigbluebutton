@@ -52,8 +52,11 @@ script "Setting up rvmsudo replace sudo" do
   cwd "/tmp"
   code <<-EOH
   mv /usr/bin/sudo /usr/bin/sudo.orig
-  ln -s /usr/local/rvm/bin/rvmsudo /usr/bin/sudo
-  sed -i "s/command sudo/command sudo.orig/" /usr/bin/sudo
+  if [`file /usr/bin/sudo.orig | grep bash | wc  -c` != "0" ]
+  then
+    ln -s /usr/local/rvm/bin/rvmsudo /usr/bin/sudo
+  fi
+  sed -i "s/command sudo /command sudo.orig /" /usr/bin/sudo
   EOH
 end
 
@@ -62,6 +65,7 @@ gem_package "god" do
 end
 
 package 'bigbluebutton' do
+  timeout 600
   not_if { node.attribute?("bigbluebutton_installed") }
 end
 
