@@ -40,7 +40,7 @@ end
 bash "Adding the bigbluebutton repository URL" do
   user 'root'
   if node['bigbluebutton'] && node['bigbluebutton']['beta']
-    code 'echo "http://ubuntu.bigbluebutton.org/lucid_dev_08/ bigbluebutton-lucid main" | sudo tee /etc/apt/sources.list.d/bigbluebutton.list'
+    code 'echo "deb http://ubuntu.bigbluebutton.org/lucid_dev_08/ bigbluebutton-lucid main" | sudo tee /etc/apt/sources.list.d/bigbluebutton.list'
   else
     code 'echo "deb http://ubuntu.bigbluebutton.org/lucid/ bigbluebutton-lucid main" | sudo tee /etc/apt/sources.list.d/bigbluebutton.list'
   end
